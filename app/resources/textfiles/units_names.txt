@@ -1,0 +1,23 @@
+K/μl
+M/μl
+ng/ml
+pg/ml
+g/l
+mg/l
+ng/dl
+μg/dl
+mg/dl
+g/dl
+mmol/l
+nmol/l
+pmol/l
+μIU/ml
+mIU/ml
+IU/ml
+IU/l
+fl
+pg
+%
+mm/h
+sec
+ml/min/1.73 m²

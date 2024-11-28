@@ -1,0 +1,66 @@
+Leukocytes (WBC)
+Erythrocytes (RBC)
+Hemoglobin (HGB)
+Hematocrit (HCT)
+Mean Corpuscular Volume (MCV)
+Mean Corpuscular Hemoglobin (MCH)
+Mean Corpuscular Hemoglobin Concentration (MCHC)
+Platelets (PLT)
+Red Cell Distribution Width (RDW-CV)
+Platelet Distribution Width (PDW)
+Mean Platelet Volume (MPV)
+Platelet Large Cell Ratio (P-LCR)
+Plateletcrit (PCT)
+Neutrophils %
+Lymphocytes %
+Monocytes %
+Eosinophils %
+Basophils %
+Immature Granulocytes %
+Neutrophils (absolute)
+Lymphocytes (absolute)
+Monocytes (absolute)
+Eosinophils (absolute)
+Basophils (absolute)
+Immature Granulocytes (absolute)
+Erythrocyte Sedimentation Rate (ESR)
+Total Cholesterol
+Non-HDL Cholesterol
+HDL Cholesterol
+Calculated LDL Cholesterol
+Uric Acid
+Triglycerides
+17-Hydroxyprogesterone
+DHEA-SO4
+Follicle Stimulating Hormone (FSH)
+Luteinizing Hormone (LH)
+Testosterone
+Fasting Glucose
+Glucose (1-hour post-load)
+Glucose (2-hour post-load)
+HE4
+CA-125
+Fasting Insulin
+Insulin (post-load, point 1)
+Insulin (post-load, point 2)
+Thyroid-Stimulating Hormone (TSH)
+Free Triiodothyronine (FT3)
+Free Thyroxine (FT4)
+Anti-TPO Antibodies
+Anti-TG Antibodies
+Ferritin
+Unsaturated Iron-Binding Capacity (UIBC)
+Iron (Fe)
+Total Iron-Binding Capacity (TIBC)
+Prolactin
+Vitamin D3 (25-OH)
+Activated Partial Thromboplastin Time (APTT)
+APTT Ratio
+C-Reactive Protein (CRP)
+Serum Potassium (K+)
+Estimated Glomerular Filtration Rate (eGFR)
+Serum Creatinine
+Serum Sodium (Na+)
+Prothrombin Time (PT)
+Prothrombin Index
+Vitamin B3

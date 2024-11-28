@@ -1,0 +1,9 @@
+Welcome to Blood Test Tracker.
+
+You can:
+
+1) Enter new results in the left upper panel
+2) See and manage (change/delete) results in the left lower panel, where the history of entries is stored
+3) Track the history of your specific blood test results over time in the right panel
+
+Remember about regular checkups!

@@ -1,0 +1,32 @@
+QSpinBox {
+    color: white;
+    background-color: #2b5eb0;
+    border: 1px solid #444;
+    border-radius: 3px;  
+}
+                        
+QSpinBox::up-button {
+    width: 20px;
+    height: 20px;
+    right: 3px;
+    top: 2px;
+}
+
+QSpinBox::down-button {
+    width: 20px;
+    height: 20px;
+    right: 3px;
+    bottom: 2px;
+}
+
+QSpinBox::up-arrow {
+    image: url('app/images/up-arrow.png');
+    width: 20px;
+    height: 20px;
+}
+
+QSpinBox::down-arrow {
+    image: url('app/images/down-arrow.png');
+    width: 20px;
+    height: 20px;
+}
