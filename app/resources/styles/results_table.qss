@@ -80,6 +80,10 @@ QHeaderView::section:vertical {
     border: 1px solid #b7bcc4;
 }
 
+QHeaderView {
+    background-color: #dcdadb;
+}
+
 QTableWidget::item {
     background-color: #dcdadb;  
     color: black;

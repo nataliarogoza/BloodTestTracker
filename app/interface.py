@@ -349,6 +349,7 @@ class LabResultsApp(QWidget):
         """ Manage the GUI """
         self.set_canvas()
         self.set_font()
+        self.setStyleSheet("color: white;")
         self.setPalette(self.set_background())
         self.set_geometry()
 

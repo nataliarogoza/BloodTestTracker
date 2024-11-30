@@ -14,7 +14,7 @@ class CustomCalendarWidget(QCalendarWidget):
         self.up_arrow_dir = os.path.join(self.current_dir, "images/up-arrow.png")
         self.down_arrow_dir = os.path.join(self.current_dir, "images/down-arrow.png")
 
-        self.setStyleSheet("color: white; background-color:#dcdadb; border-radius: 10px; padding: 10px;")
+        self.setStyleSheet("selection-background-color: #35a854; color: white; background-color:#dcdadb; border-radius: 10px; padding: 10px;")
         font = QFont("Roboto Regular", 11)
         self.setFont(font)
 
