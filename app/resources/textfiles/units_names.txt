@@ -21,3 +21,5 @@ pg
 mm/h
 sec
 ml/min/1.73 m²
+10^9/l
+cells/l
