@@ -1,5 +1,6 @@
 import os
-from database import DatabaseManager 
+from datetime import datetime
+from database import DatabaseManager
 from custom import CustomCalendarWidget
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, 
@@ -109,6 +110,32 @@ class LabResultsApp(QWidget):
             self.results_table.setItem(row_id, 1, QTableWidgetItem(str(result_value)))
             self.results_table.setItem(row_id, 2, QTableWidgetItem(unit))
             self.results_table.setItem(row_id, 3, QTableWidgetItem(test_date.strftime("%Y-%m-%d")))
+
+    def export_backup(self):
+        """ Export all results to a timestamped CSV file as a personal backup """
+        db = DatabaseManager()
+        results = db.select_all()
+        if not results:
+            QMessageBox.warning(self, "No Data", "There is no data to export yet.")
+            return
+
+        # Place the backup folder as a sibling of the project folder itself (not a
+        # hardcoded home-directory path), so it follows wherever the repo is cloned
+        project_dir = os.path.dirname(self.current_dir)  # app/ -> project root
+        parent_dir = os.path.dirname(project_dir)
+        project_name = os.path.basename(project_dir)
+        backup_dir = os.path.join(parent_dir, f"{project_name}_backups")
+        try:
+            os.makedirs(backup_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = os.path.join(backup_dir, f"blood_test_backup_{timestamp}.csv")
+
+            df = pd.DataFrame(results, columns=["Test Name", "Result Value", "Unit", "Test Date"])
+            df.to_csv(backup_file, index=False)
+
+            QMessageBox.information(self, "Backup Complete", f"Your data has been exported to:\n{backup_file}")
+        except OSError as e:
+            QMessageBox.critical(self, "Backup Failed", f"Could not write backup file: {str(e)}")
 
     def set_font(self):
         """ Set widget's to use particular font as a default """
@@ -420,6 +447,11 @@ class LabResultsApp(QWidget):
         self.results_table.customContextMenuRequested.connect(self.show_context_menu) 
         left_panel.addWidget(self.results_table)
         self.refresh_results_table() # Populate and refresh the results table
+
+        export_button = QPushButton("Export Backup (CSV)")
+        export_button.clicked.connect(self.export_backup) # Triggering method to save all data as a CSV backup
+        export_button.setStyleSheet("background-color: #35a854; color: white; border-radius: 5px; padding: 10px; font-family: Roboto Regular; font-size: 16px;")  # Styling for button
+        left_panel.addWidget(export_button)
 
         # RIGHT PANEL - TEST SELECTION AND DATA ANALYSIS (STATISTICS AND PLOT)
         right_panel = QVBoxLayout()
