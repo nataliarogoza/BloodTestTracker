@@ -2,7 +2,7 @@
 ## Description
 **BloodTestTracker** is a Linux desktop application built using **Python**, **PyQt** and **PostgreSQL**. It is developed and tested on Linux Mint and is confirmed to work on Ubuntu 22.04.
 
-With **BloodTestTracker** you can easily manage your blood test results over time. You can enter, update, or delete your results and visualize your data with statistics and plots of selected tests! The application automatically sets up a database to store your data during the initial setup.
+With **BloodTestTracker** you can easily manage your blood test results over time. You can enter, update, or delete your results and visualize your data with statistics and plots of selected tests! The application automatically sets up a database to store your data during the initial setup. The results can be archived anytime.
 
 ## Installation and setup
 

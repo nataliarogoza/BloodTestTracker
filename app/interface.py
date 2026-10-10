@@ -1,5 +1,6 @@
 import os
-from database import DatabaseManager 
+from datetime import datetime
+from database import DatabaseManager
 from custom import CustomCalendarWidget
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, 
@@ -20,6 +21,7 @@ class LabResultsApp(QWidget):
         """ Initialize the LabResultsApp instance """
         super().__init__() # Inheriting from QWidget
         self.current_dir = os.path.dirname(os.path.abspath(__file__)) # Store current directory path
+        self.db_connection_ok = True # Tracks DB reachability, to avoid popup spam from autorefresh
         self.set_insert_mode()
         self.load_data()  
         self.init_ui()
@@ -100,15 +102,51 @@ class LabResultsApp(QWidget):
         self.timer.start(5000)  # 5000 milliseconds = 5 seconds
 
     def refresh_results_table(self):
-        """ Fetch ALL results from database and display in "Entries History" section's table widget """
+        """ Fetch ALL results from database and display in "Entries History" section's table widget.
+            Only shows the connection-error popup on the FIRST failure after a working
+            connection - while the DB stays down, later autorefresh ticks retry quietly
+            rather than popping up a new dialog every 5 seconds. """
         db = DatabaseManager()
-        results = db.select_all()
+        results = db.select_all(show_error=self.db_connection_ok)
+        if results is None: # Connection failed - keep showing the last known table, stay quiet next tick
+            self.db_connection_ok = False
+            return
+        self.db_connection_ok = True # Connected fine (table may legitimately be empty)
+
         self.results_table.setRowCount(len(results))
         for row_id, (test_name, result_value, unit, test_date) in enumerate(results):
             self.results_table.setItem(row_id, 0, QTableWidgetItem(test_name))
             self.results_table.setItem(row_id, 1, QTableWidgetItem(str(result_value)))
             self.results_table.setItem(row_id, 2, QTableWidgetItem(unit))
             self.results_table.setItem(row_id, 3, QTableWidgetItem(test_date.strftime("%Y-%m-%d")))
+
+    def export_backup(self):
+        """ Export all results to a timestamped CSV file as a personal backup """
+        db = DatabaseManager()
+        results = db.select_all() # show_error=True (default) - the connect error popup already explains a dead connection
+        if results is None: # Connection failed - error popup already shown by select_all()
+            return
+        if not results:
+            QMessageBox.warning(self, "No Data", "There is no data to export yet.")
+            return
+
+        # Place the backup folder as a sibling of the project folder itself (not a
+        # hardcoded home-directory path), so it follows wherever the repo is cloned
+        project_dir = os.path.dirname(self.current_dir)  # app/ -> project root
+        parent_dir = os.path.dirname(project_dir)
+        project_name = os.path.basename(project_dir)
+        backup_dir = os.path.join(parent_dir, f"{project_name}_backups")
+        try:
+            os.makedirs(backup_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = os.path.join(backup_dir, f"blood_test_backup_{timestamp}.csv")
+
+            df = pd.DataFrame(results, columns=["Test Name", "Result Value", "Unit", "Test Date"])
+            df.to_csv(backup_file, index=False)
+
+            QMessageBox.information(self, "Backup Complete", f"Your data has been exported to:\n{backup_file}")
+        except OSError as e:
+            QMessageBox.critical(self, "Backup Failed", f"Could not write backup file: {str(e)}")
 
     def set_font(self):
         """ Set widget's to use particular font as a default """
@@ -420,6 +458,11 @@ class LabResultsApp(QWidget):
         self.results_table.customContextMenuRequested.connect(self.show_context_menu) 
         left_panel.addWidget(self.results_table)
         self.refresh_results_table() # Populate and refresh the results table
+
+        export_button = QPushButton("Export Backup (CSV)")
+        export_button.clicked.connect(self.export_backup) # Triggering method to save all data as a CSV backup
+        export_button.setStyleSheet("background-color: #35a854; color: white; border-radius: 5px; padding: 10px; font-family: Roboto Regular; font-size: 16px;")  # Styling for button
+        left_panel.addWidget(export_button)
 
         # RIGHT PANEL - TEST SELECTION AND DATA ANALYSIS (STATISTICS AND PLOT)
         right_panel = QVBoxLayout()

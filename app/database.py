@@ -21,8 +21,10 @@ class DatabaseManager():
         if not all([self.dbname, self.user, self.password]):
             raise ValueError("Missing required environment variables (DB_NAME, DB_USER, or DB_PASSWORD)!")
 
-    def connect_to_db(self):
-        """ Establish connection to the database """
+    def connect_to_db(self, show_error=True):
+        """ Establish connection to the database.
+            show_error=False suppresses the popup, for callers (like a background
+            auto-refresh) that want to retry quietly instead of spamming dialogs. """
         try:
             conn = psycopg2.connect(
                 dbname=self.dbname,
@@ -32,7 +34,15 @@ class DatabaseManager():
                 port=self.port)
             return conn
         except Exception as e:
-            QMessageBox.critical(None, "Connection Error", str(e))
+            if show_error:
+                msg = QMessageBox(
+                    QMessageBox.Icon.Critical,
+                    "Connection Error",
+                    "Couldn't connect to the database.\n\n"
+                    "Make sure PostgreSQL is running, and that the credentials "
+                    "in your .env file are correct.")
+                msg.setDetailedText(str(e)) # Raw technical error, tucked behind "Show Details..."
+                msg.exec()
             return None
         
     def insert(self, test_name, result_value, unit, result_date):
@@ -108,11 +118,16 @@ class DatabaseManager():
         finally:
             conn.close()
 
-    def select_all(self):
-        """ Select all results table content """
-        conn = self.connect_to_db()
+    def select_all(self, show_error=True):
+        """ Select all results table content.
+            show_error=False suppresses the connection-error popup (used by the
+            auto-refresh timer, so a dropped connection doesn't pop up a new
+            dialog every few seconds). Returns None specifically when the
+            connection failed, distinct from [] for a genuinely empty table. """
+        conn = self.connect_to_db(show_error=show_error)
         if not conn:
-            return
+            return None
+        results = []
         try:
             cur = conn.cursor()
             sql = f"SELECT test_name, result_value, unit, test_date FROM {self.table_name} ORDER BY id;"
@@ -123,12 +138,13 @@ class DatabaseManager():
         finally:
             conn.close()
         return results
-    
+
     def select_chosen_all(self, test_name):
         """ Select all avaiable data for one specified test_name of results table """
         conn = self.connect_to_db()
         if not conn:
-            return
+            return []
+        results = []
         try:
             cur = conn.cursor()
             sql = f"SELECT result_value, unit, test_date FROM {self.table_name} WHERE test_name = %s ORDER BY test_date"
@@ -139,18 +155,19 @@ class DatabaseManager():
         finally:
             conn.close()
         return results
-    
+
     def select_chosen_column(self, column_name):
         """ Select only values from specified column of results table """
         conn = self.connect_to_db()
         if not conn:
-            return
+            return []
+        results = []
         try:
             cur = conn.cursor()
             cur.execute(f"SELECT {column_name} FROM {self.table_name}")
             results = sorted(set([res[0] for res in cur]))
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(None, "Error", str(e))
         finally:
             conn.close()
         return results
