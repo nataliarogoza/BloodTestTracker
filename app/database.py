@@ -112,7 +112,8 @@ class DatabaseManager():
         """ Select all results table content """
         conn = self.connect_to_db()
         if not conn:
-            return
+            return []
+        results = []
         try:
             cur = conn.cursor()
             sql = f"SELECT test_name, result_value, unit, test_date FROM {self.table_name} ORDER BY id;"
@@ -123,12 +124,13 @@ class DatabaseManager():
         finally:
             conn.close()
         return results
-    
+
     def select_chosen_all(self, test_name):
         """ Select all avaiable data for one specified test_name of results table """
         conn = self.connect_to_db()
         if not conn:
-            return
+            return []
+        results = []
         try:
             cur = conn.cursor()
             sql = f"SELECT result_value, unit, test_date FROM {self.table_name} WHERE test_name = %s ORDER BY test_date"
@@ -139,18 +141,19 @@ class DatabaseManager():
         finally:
             conn.close()
         return results
-    
+
     def select_chosen_column(self, column_name):
         """ Select only values from specified column of results table """
         conn = self.connect_to_db()
         if not conn:
-            return
+            return []
+        results = []
         try:
             cur = conn.cursor()
             cur.execute(f"SELECT {column_name} FROM {self.table_name}")
             results = sorted(set([res[0] for res in cur]))
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(None, "Error", str(e))
         finally:
             conn.close()
         return results
