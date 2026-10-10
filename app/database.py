@@ -35,7 +35,14 @@ class DatabaseManager():
             return conn
         except Exception as e:
             if show_error:
-                QMessageBox.critical(None, "Connection Error", str(e))
+                msg = QMessageBox(
+                    QMessageBox.Icon.Critical,
+                    "Connection Error",
+                    "Couldn't connect to the database.\n\n"
+                    "Make sure PostgreSQL is running, and that the credentials "
+                    "in your .env file are correct.")
+                msg.setDetailedText(str(e)) # Raw technical error, tucked behind "Show Details..."
+                msg.exec()
             return None
         
     def insert(self, test_name, result_value, unit, result_date):
