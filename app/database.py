@@ -21,8 +21,10 @@ class DatabaseManager():
         if not all([self.dbname, self.user, self.password]):
             raise ValueError("Missing required environment variables (DB_NAME, DB_USER, or DB_PASSWORD)!")
 
-    def connect_to_db(self):
-        """ Establish connection to the database """
+    def connect_to_db(self, show_error=True):
+        """ Establish connection to the database.
+            show_error=False suppresses the popup, for callers (like a background
+            auto-refresh) that want to retry quietly instead of spamming dialogs. """
         try:
             conn = psycopg2.connect(
                 dbname=self.dbname,
@@ -32,7 +34,8 @@ class DatabaseManager():
                 port=self.port)
             return conn
         except Exception as e:
-            QMessageBox.critical(None, "Connection Error", str(e))
+            if show_error:
+                QMessageBox.critical(None, "Connection Error", str(e))
             return None
         
     def insert(self, test_name, result_value, unit, result_date):
@@ -108,11 +111,15 @@ class DatabaseManager():
         finally:
             conn.close()
 
-    def select_all(self):
-        """ Select all results table content """
-        conn = self.connect_to_db()
+    def select_all(self, show_error=True):
+        """ Select all results table content.
+            show_error=False suppresses the connection-error popup (used by the
+            auto-refresh timer, so a dropped connection doesn't pop up a new
+            dialog every few seconds). Returns None specifically when the
+            connection failed, distinct from [] for a genuinely empty table. """
+        conn = self.connect_to_db(show_error=show_error)
         if not conn:
-            return []
+            return None
         results = []
         try:
             cur = conn.cursor()

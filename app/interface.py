@@ -21,6 +21,7 @@ class LabResultsApp(QWidget):
         """ Initialize the LabResultsApp instance """
         super().__init__() # Inheriting from QWidget
         self.current_dir = os.path.dirname(os.path.abspath(__file__)) # Store current directory path
+        self.db_connection_ok = True # Tracks DB reachability, to avoid popup spam from autorefresh
         self.set_insert_mode()
         self.load_data()  
         self.init_ui()
@@ -101,9 +102,17 @@ class LabResultsApp(QWidget):
         self.timer.start(5000)  # 5000 milliseconds = 5 seconds
 
     def refresh_results_table(self):
-        """ Fetch ALL results from database and display in "Entries History" section's table widget """
+        """ Fetch ALL results from database and display in "Entries History" section's table widget.
+            Only shows the connection-error popup on the FIRST failure after a working
+            connection - while the DB stays down, later autorefresh ticks retry quietly
+            rather than popping up a new dialog every 5 seconds. """
         db = DatabaseManager()
-        results = db.select_all()
+        results = db.select_all(show_error=self.db_connection_ok)
+        if results is None: # Connection failed - keep showing the last known table, stay quiet next tick
+            self.db_connection_ok = False
+            return
+        self.db_connection_ok = True # Connected fine (table may legitimately be empty)
+
         self.results_table.setRowCount(len(results))
         for row_id, (test_name, result_value, unit, test_date) in enumerate(results):
             self.results_table.setItem(row_id, 0, QTableWidgetItem(test_name))
@@ -114,7 +123,9 @@ class LabResultsApp(QWidget):
     def export_backup(self):
         """ Export all results to a timestamped CSV file as a personal backup """
         db = DatabaseManager()
-        results = db.select_all()
+        results = db.select_all() # show_error=True (default) - the connect error popup already explains a dead connection
+        if results is None: # Connection failed - error popup already shown by select_all()
+            return
         if not results:
             QMessageBox.warning(self, "No Data", "There is no data to export yet.")
             return
