@@ -5,7 +5,7 @@ import pytest
 from bloodtracker.db import connect, migrate
 
 
-def add_test(conn, name="Ferritin"):
+def add_test(conn, name="Example Test"): # A name not in the seeded catalog
     return conn.execute("INSERT INTO tests (name) VALUES (?)", (name,)).lastrowid
 
 
@@ -28,7 +28,7 @@ def test_migrate_creates_tables(conn):
 
 def test_migrate_runs_each_migration_only_once(db_path):
     conn = connect(db_path)
-    assert migrate(conn) == ["001_initial.sql"]
+    assert migrate(conn) == ["001_initial.sql", "002_seed_test_catalog.sql"]
     assert migrate(conn) == [] # Second run: nothing left to do
     conn.close()
 
@@ -114,3 +114,12 @@ def test_test_with_results_cannot_be_deleted(conn):
     add_result(conn, report_id, test_id)
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("DELETE FROM tests WHERE id = ?", (test_id,))
+
+
+# --- Test catalog ---
+
+def test_catalog_is_seeded(conn):
+    count, uncategorized = conn.execute(
+        "SELECT count(*), count(*) FILTER (WHERE category IS NULL) FROM tests").fetchone()
+    assert count == 73
+    assert uncategorized == 0
