@@ -1,0 +1,8 @@
+{# Reply to a successful add: the fresh form goes where the old one was. The parts marked
+   hx-swap-oob ("out of band") replace the elements with the same id elsewhere on the page.
+   <template> is needed because a <tbody> can't stand on its own outside a table. #}
+{% include "partials/add_form.html" %}
+<template>
+    <tbody id="results-body" hx-swap-oob="true">{% include "partials/rows.html" %}</tbody>
+</template>
+<span id="result-count" hx-swap-oob="true">{{ results|length }}</span>

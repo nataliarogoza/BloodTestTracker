@@ -9,7 +9,9 @@ MIGRATION_NAME = re.compile(r"^\d{3}_[a-z0-9_]+\.sql$") # e.g. 001_initial.sql
 
 def connect(db_path) -> sqlite3.Connection:
     """ Open the database with the settings every connection needs """
-    conn = sqlite3.connect(db_path)
+    # check_same_thread=False: FastAPI may open a connection on one thread and use it on
+    # another. That's safe here because each web request gets its own connection.
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row # Rows can be read by column name: row["value"]
     conn.execute("PRAGMA foreign_keys = ON") # SQLite ignores foreign keys unless told otherwise
     return conn

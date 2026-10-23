@@ -1,15 +1,46 @@
-""" FastAPI application: routes and template setup """
+""" FastAPI application: pages, HTMX routes and security checks """
+import datetime
+import sqlite3
 from pathlib import Path
+from typing import Annotated
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, Request
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from bloodtracker import services
 from bloodtracker.config import DB_PATH, PACKAGE_DIR
 from bloodtracker.db import connect, migrate
+from bloodtracker.services import NotFoundError, ValidationError
+
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
+
+def format_value(result) -> str:
+    """ How a result's value is shown: 85.0 -> "85", 13.45 -> "13.45", text kept as is ("<0.5") """
+    if result["value"] is None:
+        return result["value_text"] or ""
+    text = repr(result["value"]) # Shortest form that is still exact
+    return text[:-2] if text.endswith(".0") else text
+
 
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
+templates.env.filters["value"] = format_value
+
+
+def get_conn(request: Request):
+    """ One database connection per request, closed when the request is done """
+    conn = connect(request.app.state.db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
 
 def create_app(db_path: Path | str = DB_PATH) -> FastAPI:
@@ -23,12 +54,109 @@ def create_app(db_path: Path | str = DB_PATH) -> FastAPI:
     finally:
         conn.close()
 
-    app = FastAPI(title="BloodTestTracker")
-    app.state.db_path = db_path # Routes added in later steps open connections from this
+    # No /docs page: it's for developers, and it would load its scripts from the internet
+    app = FastAPI(title="BloodTestTracker", docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.db_path = db_path
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
 
+    # Security 1: only answer requests addressed to this computer by name. Blocks "DNS rebinding",
+    # where a website makes your browser talk to 127.0.0.1 under the website's own name.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+
+    @app.middleware("http")
+    async def refuse_cross_site_changes(request: Request, call_next):
+        """ Security 2 (CSRF protection): another website open in your browser could otherwise
+            send "add" or "delete" requests here. Browsers say where a request comes from
+            (Origin / Sec-Fetch-Site), so changes are only accepted from this app's own pages. """
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            origin = request.headers.get("origin")
+            cross_site = request.headers.get("sec-fetch-site") == "cross-site"
+            if cross_site or (origin is not None and urlsplit(origin).netloc != request.headers.get("host")):
+                return PlainTextResponse("Refused: this request didn't come from BloodTestTracker.", status_code=403)
+        return await call_next(request)
+
+    def render(request, template, context, headers=None):
+        return templates.TemplateResponse(request, template, context, headers=headers)
+
+    def form_context(conn, **extra):
+        """ What every form needs: the grouped test list, unit suggestions, today's date """
+        groups = {}
+        for test in services.list_tests(conn):
+            groups.setdefault(test["category"] or "Other", []).append(test)
+        return {"test_groups": groups, "units": services.list_units(conn),
+                "today": datetime.date.today().isoformat(), **extra}
+
+    def blank_form(**fields):
+        return {"test_id": "", "date": datetime.date.today().isoformat(), "value": "", "unit": "",
+                "error": None, "message": None, **fields}
+
+    def to_int(text: str) -> int:
+        try:
+            return int(text)
+        except (TypeError, ValueError):
+            return 0 # No test has id 0, so this becomes "Please choose a test"
+
     @app.get("/", response_class=HTMLResponse)
-    def index(request: Request):
-        return templates.TemplateResponse(request, "index.html")
+    def index(request: Request, conn: Conn):
+        return render(request, "index.html", form_context(conn, form=blank_form(), results=services.list_results(conn)))
+
+    @app.post("/results", response_class=HTMLResponse)
+    def add_result(request: Request, conn: Conn, test_id: str = Form(""), date: str = Form(""),
+                   value: str = Form(""), unit: str = Form("")):
+        try:
+            new_id = services.add_result(conn, to_int(test_id), date, value, unit)
+        except ValidationError as error:
+            form = blank_form(test_id=test_id, date=date, value=value, unit=unit, error=str(error))
+            return render(request, "partials/add_form.html", form_context(conn, form=form))
+
+        saved = services.get_result(conn, new_id)
+        # Keep test, date and unit for quick entry of the next result from the same visit
+        form = blank_form(test_id=test_id, date=saved["date"], unit=unit, focus_value=True,
+                          message=f"Added {saved['test_name']}: {format_value(saved)} {saved['unit'] or ''} on {saved['date']}")
+        return render(request, "responses/after_add.html",
+                      form_context(conn, form=form, results=services.list_results(conn)))
+
+    @app.get("/results/{result_id}", response_class=HTMLResponse)
+    def show_row(request: Request, conn: Conn, result_id: int):
+        try:
+            return render(request, "partials/row.html", {"r": services.get_result(conn, result_id)})
+        except NotFoundError:
+            return reload_page()
+
+    @app.get("/results/{result_id}/edit", response_class=HTMLResponse)
+    def edit_row(request: Request, conn: Conn, result_id: int):
+        try:
+            r = services.get_result(conn, result_id)
+        except NotFoundError:
+            return reload_page()
+        form = blank_form(test_id=str(r["test_id"]), date=r["date"], value=format_value(r), unit=r["unit"] or "")
+        return render(request, "partials/edit_row.html", form_context(conn, r=r, form=form))
+
+    @app.put("/results/{result_id}", response_class=HTMLResponse)
+    def save_row(request: Request, conn: Conn, result_id: int, test_id: str = Form(""),
+                 date: str = Form(""), value: str = Form(""), unit: str = Form("")):
+        try:
+            services.update_result(conn, result_id, to_int(test_id), date, value, unit)
+        except NotFoundError:
+            return reload_page()
+        except ValidationError as error:
+            r = {"id": result_id}
+            form = blank_form(test_id=test_id, date=date, value=value, unit=unit, error=str(error))
+            return render(request, "partials/edit_row.html", form_context(conn, r=r, form=form))
+        # Success: redraw the whole table, since a changed date can move the row
+        return render(request, "partials/rows.html", {"results": services.list_results(conn)},
+                      headers={"HX-Retarget": "#results-body", "HX-Reswap": "innerHTML"})
+
+    @app.delete("/results/{result_id}", response_class=HTMLResponse)
+    def delete_row(request: Request, conn: Conn, result_id: int):
+        try:
+            services.delete_result(conn, result_id)
+        except NotFoundError:
+            pass # Already gone (e.g. deleted in another tab) - removing the row is still right
+        return render(request, "responses/after_delete.html", {"count": len(services.list_results(conn))})
+
+    def reload_page():
+        """ The result vanished (e.g. deleted in another tab): ask HTMX to reload the page """
+        return HTMLResponse("", headers={"HX-Refresh": "true"})
 
     return app

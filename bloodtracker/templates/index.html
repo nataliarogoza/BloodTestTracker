@@ -1,5 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Results</h1>
-<p class="muted">The new foundation is running. Results, charts and export pages arrive in the next steps.</p>
+<section class="card">
+    <h2>Add a result</h2>
+    {% include "partials/add_form.html" %}
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <h2>Results (<span id="result-count">{{ results|length }}</span>)</h2>
+        <input id="filter" type="search" placeholder="Filter: test, category or date…" aria-label="Filter results">
+    </div>
+    <table class="results">
+        {# Fixed column widths, so the table doesn't jump around when a row switches to edit mode #}
+        <colgroup>
+            <col class="col-date"><col class="col-test"><col class="col-value"><col class="col-unit"><col class="col-actions">
+        </colgroup>
+        <thead>
+            <tr><th>Date</th><th>Test</th><th class="num">Value</th><th>Unit</th><th></th></tr>
+        </thead>
+        <tbody id="results-body">
+            {% include "partials/rows.html" %}
+        </tbody>
+    </table>
+</section>
+
+{# Unit suggestions, shared by the add form and the edit rows #}
+<datalist id="unit-options">
+    {% for unit in units %}<option value="{{ unit }}">{% endfor %}
+</datalist>
 {% endblock %}

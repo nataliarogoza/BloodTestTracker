@@ -5,6 +5,8 @@
     --muted: #667085;
     --accent: #2b5eb0;
     --border: #e3e6eb;
+    --danger: #b42318;
+    --success: #067647;
 }
 
 * { box-sizing: border-box; }
@@ -32,3 +34,81 @@ body {
 
 .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 .muted { color: var(--muted); }
+.small { font-size: 0.8rem; }
+
+h2 { font-size: 1.1rem; margin: 0 0 1rem; }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.card-header h2 { margin: 0; }
+
+input, select, button { font: inherit; }
+
+input, select {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+button {
+    padding: 0.45rem 0.9rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+}
+button:hover { filter: brightness(1.1); }
+button.secondary { background: var(--border); color: var(--text); }
+button.icon { background: none; color: var(--muted); padding: 0.2rem 0.4rem; }
+button.icon:hover { color: var(--accent); }
+button.icon.danger:hover { color: var(--danger); }
+
+.add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.add-form select { flex: 1 1 18rem; }
+.add-form input[name=value] { width: 9rem; }
+.add-form input[name=unit] { width: 8rem; }
+.add-form .error, .add-form .success { flex-basis: 100%; margin: 0.25rem 0 0; }
+
+.error { color: var(--danger); }
+.success { color: var(--success); }
+
+#filter { width: 18rem; max-width: 100%; }
+
+.results { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.results .col-date { width: 11rem; }
+.results .col-value { width: 8rem; }
+.results .col-unit { width: 8rem; }
+.results .col-actions { width: 11.5rem; }
+.results th, .results td {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle;
+}
+.results th { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.results .num { text-align: right; font-variant-numeric: tabular-nums; }
+.results .actions { white-space: nowrap; text-align: right; }
+.results tr.editing td { background: #f0f4fb; }
+.results tr.editing input, .results tr.editing select { width: 100%; }
+.results tr.editing .error { margin: 0.4rem 0 0; white-space: normal; text-align: left; }
+.results tr.empty td { color: var(--muted); text-align: center; padding: 2rem; }
+
+/* Rows being added or removed by HTMX fade briefly, so the change is noticeable */
+tr.htmx-swapping { opacity: 0; transition: opacity 0.3s; }

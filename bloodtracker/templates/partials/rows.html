@@ -1,0 +1,5 @@
+{% for r in results %}
+    {% include "partials/row.html" %}
+{% else %}
+    <tr class="empty"><td colspan="5">No results yet - add your first one above.</td></tr>
+{% endfor %}

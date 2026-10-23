@@ -25,5 +25,6 @@ def conn(db_path):
 
 @pytest.fixture
 def client(db_path):
-    """ A test client for an app that uses the temporary database """
-    return TestClient(create_app(db_path))
+    """ A test client for an app that uses the temporary database. It must say it's talking
+        to 127.0.0.1, since the app refuses other host names (its default is "testserver"). """
+    return TestClient(create_app(db_path), base_url="http://127.0.0.1")

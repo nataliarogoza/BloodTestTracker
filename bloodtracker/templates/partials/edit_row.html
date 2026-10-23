@@ -1,0 +1,12 @@
+{# The row turned into inputs. hx-include="closest tr" sends every input in this row. #}
+<tr id="result-{{ r.id }}" class="editing">
+    <td><input type="date" name="date" value="{{ form.date }}" max="{{ today }}" required aria-label="Date"></td>
+    <td>{% include "partials/test_select.html" %}</td>
+    <td><input type="text" name="value" value="{{ form.value }}" inputmode="decimal" required aria-label="Value"></td>
+    <td><input type="text" name="unit" value="{{ form.unit }}" list="unit-options" aria-label="Unit"></td>
+    <td class="actions">
+        <button hx-put="/results/{{ r.id }}" hx-include="closest tr" hx-target="closest tr" hx-swap="outerHTML">Save</button>
+        <button class="secondary" hx-get="/results/{{ r.id }}" hx-target="closest tr" hx-swap="outerHTML">Cancel</button>
+        {% if form.error %}<p class="error" role="alert">{{ form.error }}</p>{% endif %}
+    </td>
+</tr>
