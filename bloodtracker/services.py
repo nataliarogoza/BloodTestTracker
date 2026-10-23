@@ -38,6 +38,15 @@ class Stats:
     std: float # Population standard deviation, the same formula the old app used
 
 
+@dataclass(frozen=True)
+class UnitSeries:
+    """ One test's numeric results in a single unit: one line on the chart """
+    unit: str | None
+    dates: list[str]
+    values: list[float]
+    stats: Stats
+
+
 # --- Parsing user input ---
 
 def parse_value(raw: str) -> tuple[float | None, str | None]:
@@ -107,6 +116,34 @@ def list_units(conn: sqlite3.Connection) -> list[str]:
 def test_history(conn: sqlite3.Connection, test_id: int) -> list[sqlite3.Row]:
     """ One test's results over time, oldest first (for the chart) """
     return conn.execute(f"SELECT {RESULT_COLUMNS} WHERE rs.test_id = ? ORDER BY rp.date", (test_id,)).fetchall()
+
+
+def get_test(conn: sqlite3.Connection, test_id: int) -> sqlite3.Row:
+    row = conn.execute("SELECT id, name, category, default_unit FROM tests WHERE id = ?", (test_id,)).fetchone()
+    if row is None:
+        raise NotFoundError(f"Test {test_id} doesn't exist")
+    return row
+
+
+def list_tests_with_results(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """ Tests that have at least one result, with how many - the charts page only offers these """
+    return conn.execute(
+        "SELECT t.id, t.name, t.category, count(rs.id) AS result_count FROM tests t "
+        "JOIN results rs ON rs.test_id = t.id GROUP BY t.id "
+        "ORDER BY t.category IS NULL, t.category, t.name").fetchall()
+
+
+def series_by_unit(history: list[sqlite3.Row]) -> list[UnitSeries]:
+    """ Split a test's history into one series per unit. Mixing units on one line (or in
+        one average) would be meaningless, e.g. FT4 in ng/dl and pmol/l. Text values like
+        "<0.5" aren't exact numbers, so they're left out. Units appear in the order first used. """
+    by_unit = {}
+    for row in history:
+        if row["value"] is not None:
+            dates, values = by_unit.setdefault(row["unit"], ([], []))
+            dates.append(row["date"])
+            values.append(row["value"])
+    return [UnitSeries(unit, dates, values, compute_stats(values)) for unit, (dates, values) in by_unit.items()]
 
 
 def compute_stats(values: list[float]) -> Stats | None:

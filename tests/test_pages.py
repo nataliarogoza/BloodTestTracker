@@ -1,4 +1,6 @@
 """ Tests that go through the real web routes, like the browser does (temporary database) """
+import json
+
 import pytest
 
 from bloodtracker.db import connect
@@ -168,3 +170,106 @@ def test_developer_docs_page_is_disabled(client):
 def test_htmx_is_served_locally(client):
     response = client.get("/static/js/htmx.min.js")
     assert response.status_code == 200 and "htmx" in response.text
+
+
+# --- Charts page ---
+
+from bloodtracker.app import format_rounded  # noqa: E402 (only used by the tests below)
+
+
+def chart_data(page):
+    """ The JSON the page embeds for charts.js """
+    start = page.index('id="chart-data">') + len('id="chart-data">')
+    return json.loads(page[start:page.index("</script>", start)])
+
+
+def id_of_test(db_path, name): # Not named test_...: pytest would run it as a test
+    conn = connect(db_path)
+    test_id = conn.execute("SELECT id FROM tests WHERE name = ?", (name,)).fetchone()["id"]
+    conn.close()
+    return test_id
+
+
+def test_charts_page_without_test_asks_to_choose(client):
+    page = client.get("/charts").text
+    assert "Choose a test above" in page
+    assert "plotly.min.js" in page  # Plotly is loaded on this page...
+
+
+def test_results_page_does_not_load_plotly(client):
+    assert "plotly.min.js" not in client.get("/").text  # ...but not on the results page
+
+
+def test_charts_dropdown_lists_only_recorded_tests_with_counts(client, ferritin):
+    add(client, ferritin, date="2020-02-18")
+    add(client, ferritin, date="2024-10-29")
+    page = client.get("/charts").text
+    assert "Ferritin (2)" in page
+    assert "Hemoglobin (HGB)" not in page  # No results, nothing to chart
+
+
+def test_charts_page_for_a_test_shows_chart_stats_and_history(client, ferritin):
+    add(client, ferritin, date="2020-02-18", value="40")
+    add(client, ferritin, date="2024-10-29", value="85")
+    page = client.get(f"/charts?test={ferritin}").text
+    assert chart_data(page) == {"series": [{"unit": "ng/ml", "dates": ["2020-02-18", "2024-10-29"], "values": [40.0, 85.0]}]}
+    assert "2 results · 2020-02-18 → 2024-10-29" in page
+    assert "62.5 ± 22.5" in page  # Average ± spread
+    assert f'value="{ferritin}" selected' in page
+
+
+def test_htmx_request_gets_only_the_panel(client, ferritin):
+    add(client, ferritin)
+    response = client.get(f"/charts?test={ferritin}", headers={"HX-Request": "true"})
+    assert 'id="chart-data"' in response.text
+    assert "<html" not in response.text  # Just the panel, not the whole page
+    assert response.headers["Vary"] == "HX-Request"
+
+
+def test_back_button_request_gets_whole_page(client, ferritin):
+    add(client, ferritin)
+    response = client.get(f"/charts?test={ferritin}",
+                          headers={"HX-Request": "true", "HX-History-Restore-Request": "true"})
+    assert "<html" in response.text
+
+
+def test_mixed_units_are_explained(client, db_path):
+    ft4 = id_of_test(db_path, "Free Thyroxine (FT4)")
+    add(client, ft4, date="2024-10-29", value="12.45", unit="pmol/l")
+    add(client, ft4, date="2025-11-29", value="1.31", unit="ng/dl")
+    page = client.get(f"/charts?test={ft4}").text
+    assert "different units (pmol/l, ng/dl)" in page
+
+
+def test_text_values_are_listed_but_not_charted(client, ferritin):
+    add(client, ferritin, date="2020-02-18", value="<5")
+    add(client, ferritin, date="2024-10-29", value="85")
+    page = client.get(f"/charts?test={ferritin}").text
+    assert "1 result like" in page and "&lt;5" in page
+    assert chart_data(page)["series"][0]["values"] == [85.0]
+
+
+def test_only_text_values_means_no_chart(client, ferritin):
+    add(client, ferritin, value="<5")
+    page = client.get(f"/charts?test={ferritin}").text
+    assert "No numeric results to chart" in page and 'id="chart"' not in page
+
+
+def test_unknown_test_shows_message(client):
+    assert "wasn&#39;t found" in client.get("/charts?test=99999").text
+    assert "wasn&#39;t found" in client.get("/charts?test=abc").text
+
+
+def test_results_rows_link_to_their_chart(client, ferritin):
+    add(client, ferritin)
+    assert f'href="/charts?test={ferritin}"' in client.get("/").text
+
+
+def test_pages_disable_htmx_history_storage(client):
+    assert 'hx-history="false"' in client.get("/charts").text
+
+
+@pytest.mark.parametrize("number, shown", [
+    (61.2333, "61.23"), (62.5, "62.5"), (85.0, "85"), (0.00412, "0.00412"), (0, "0"), (1234.567, "1234.57")])
+def test_rounded_numbers(number, shown):
+    assert format_rounded(number) == shown

@@ -203,3 +203,37 @@ def test_stats_single_value_has_zero_spread():
 
 def test_stats_of_nothing_is_none():
     assert services.compute_stats([]) is None
+
+
+# --- Charts helpers ---
+
+def test_series_by_unit_splits_units_and_skips_text_values(conn):
+    ft4 = lookup_test_id(conn, "Free Thyroxine (FT4)")
+    add(conn, ft4, day="2020-02-18", value="15.2", unit="pmol/l")
+    add(conn, ft4, day="2024-10-29", value="12.45", unit="pmol/l")
+    add(conn, ft4, day="2025-11-29", value="1.31", unit="ng/dl")
+    add(conn, ft4, day="2026-02-07", value="<1", unit="ng/dl")
+    series = services.series_by_unit(services.test_history(conn, ft4))
+    assert [(s.unit, s.dates, s.values) for s in series] == [
+        ("pmol/l", ["2020-02-18", "2024-10-29"], [15.2, 12.45]),
+        ("ng/dl", ["2025-11-29"], [1.31]),  # "<1" isn't a number, so it's not charted
+    ]
+    assert series[0].stats.count == 2 and series[1].stats.mean == 1.31
+
+
+def test_series_by_unit_of_only_text_values_is_empty(conn, ferritin):
+    add(conn, ferritin, value="<5")
+    assert services.series_by_unit(services.test_history(conn, ferritin)) == []
+
+
+def test_list_tests_with_results_only_lists_recorded_tests(conn, ferritin, hemoglobin):
+    add(conn, ferritin, day="2020-02-18")
+    add(conn, ferritin, day="2024-10-29")
+    add(conn, hemoglobin, value="13.4", unit="g/dl")
+    assert [(t["name"], t["result_count"]) for t in services.list_tests_with_results(conn)] == [
+        ("Hemoglobin (HGB)", 1), ("Ferritin", 2)]  # Grouped by category: Blood count, then Iron
+
+
+def test_get_missing_test_raises_not_found(conn):
+    with pytest.raises(NotFoundError):
+        services.get_test(conn, 99999)

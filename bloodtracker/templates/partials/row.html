@@ -1,7 +1,7 @@
 {# data-search is what the filter box matches against #}
 <tr id="result-{{ r.id }}" data-search="{{ (r.date ~ ' ' ~ r.test_name ~ ' ' ~ (r.category or ''))|lower }}">
     <td>{{ r.date }}</td>
-    <td>{{ r.test_name }}{% if r.category %} <span class="muted small">{{ r.category }}</span>{% endif %}</td>
+    <td><a href="/charts?test={{ r.test_id }}" title="Show {{ r.test_name }} on a chart">{{ r.test_name }}</a>{% if r.category %} <span class="muted small">{{ r.category }}</span>{% endif %}</td>
     <td class="num">{{ r|value }}</td>
     <td>{{ r.unit or '' }}</td>
     <td class="actions">

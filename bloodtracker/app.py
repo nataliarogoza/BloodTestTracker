@@ -19,16 +19,31 @@ from bloodtracker.services import NotFoundError, ValidationError
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
+def format_exact(number: float) -> str:
+    """ A measured number, exactly: 85.0 -> "85", 13.45 -> "13.45" """
+    text = repr(number) # Shortest form that is still exact
+    return text[:-2] if text.endswith(".0") else text
+
+
 def format_value(result) -> str:
-    """ How a result's value is shown: 85.0 -> "85", 13.45 -> "13.45", text kept as is ("<0.5") """
+    """ How a result's value is shown; text values are kept as is ("<0.5") """
     if result["value"] is None:
         return result["value_text"] or ""
-    text = repr(result["value"]) # Shortest form that is still exact
-    return text[:-2] if text.endswith(".0") else text
+    return format_exact(result["value"])
+
+
+def format_rounded(number: float) -> str:
+    """ A calculated number (average, spread), rounded for reading: 61.2333 -> "61.23",
+        small numbers keep 3 significant digits so they don't become 0: 0.00412 -> "0.00412" """
+    if number != 0 and abs(number) < 1:
+        return f"{number:.3g}"
+    return f"{number:.2f}".rstrip("0").rstrip(".")
 
 
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 templates.env.filters["value"] = format_value
+templates.env.filters["exact"] = format_exact
+templates.env.filters["rounded"] = format_rounded
 
 
 def get_conn(request: Request):
@@ -154,6 +169,41 @@ def create_app(db_path: Path | str = DB_PATH) -> FastAPI:
         except NotFoundError:
             pass # Already gone (e.g. deleted in another tab) - removing the row is still right
         return render(request, "responses/after_delete.html", {"count": len(services.list_results(conn))})
+
+    def chart_context(conn, test_param: str) -> dict:
+        """ Everything the charts page shows for the chosen test (if any) """
+        groups = {}
+        for t in services.list_tests_with_results(conn):
+            groups.setdefault(t["category"] or "Other", []).append(t)
+        context = {"chart_groups": groups, "selected_id": None, "test": None, "error": None}
+        if not test_param:
+            return context
+        try:
+            test = services.get_test(conn, int(test_param))
+        except (ValueError, NotFoundError):
+            return context | {"error": "That test wasn't found - choose one from the list."}
+
+        history = services.test_history(conn, test["id"])
+        series = services.series_by_unit(history)
+        return context | {
+            "selected_id": test["id"],
+            "test": test,
+            "history": list(reversed(history)), # Table: newest first, like the results page
+            "series": series,
+            "text_count": sum(1 for r in history if r["value"] is None),
+            "chart_data": {"series": [{"unit": s.unit, "dates": s.dates, "values": s.values} for s in series]},
+        }
+
+    @app.get("/charts", response_class=HTMLResponse)
+    def charts(request: Request, conn: Conn, test: str = ""):
+        # HTMX asks for just the panel when you pick a test; a normal visit (or a refresh,
+        # or going back in history) gets the whole page
+        panel_only = (request.headers.get("hx-request") == "true"
+                      and request.headers.get("hx-history-restore-request") != "true")
+        template = "partials/chart_panel.html" if panel_only else "charts.html"
+        # Vary: tells the browser the reply depends on that header, so it never shows a cached
+        # panel-only reply as if it were the whole page
+        return render(request, template, chart_context(conn, test), headers={"Vary": "HX-Request"})
 
     def reload_page():
         """ The result vanished (e.g. deleted in another tab): ask HTMX to reload the page """
