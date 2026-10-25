@@ -237,3 +237,45 @@ def test_list_tests_with_results_only_lists_recorded_tests(conn, ferritin, hemog
 def test_get_missing_test_raises_not_found(conn):
     with pytest.raises(NotFoundError):
         services.get_test(conn, 99999)
+
+
+# --- CSV export ---
+
+import csv  # noqa: E402
+import io  # noqa: E402
+
+
+def parse_csv(text):
+    return list(csv.reader(io.StringIO(text)))
+
+
+def test_csv_has_header_and_rows_oldest_first(conn, ferritin, hemoglobin):
+    add(conn, ferritin, day="2024-10-29", value="85,5")
+    add(conn, hemoglobin, day="2020-02-18", value="13.45", unit="g/dl")
+    rows = parse_csv(services.results_csv(conn))
+    assert rows == [
+        ["Date", "Test", "Category", "Value", "Unit"],
+        ["2020-02-18", "Hemoglobin (HGB)", "Blood count", "13.45", "g/dl"],
+        ["2024-10-29", "Ferritin", "Iron", "85.5", "ng/ml"],
+    ]
+
+
+def test_csv_keeps_text_values_and_commas_in_units(conn, ferritin):
+    add(conn, ferritin, value="<5", unit="ml/min/1,73 m2")
+    text = services.results_csv(conn)
+    assert '"ml/min/1,73 m2"' in text  # Quoted, so the comma doesn't split the column
+    assert parse_csv(text)[1][3:] == ["<5", "ml/min/1,73 m2"]
+
+
+def test_csv_neutralises_spreadsheet_formulas(conn, ferritin):
+    add(conn, ferritin, unit="=HYPERLINK(\"http://evil\")")
+    assert parse_csv(services.results_csv(conn))[1][4] == "'=HYPERLINK(\"http://evil\")"
+
+
+def test_csv_negative_number_is_not_escaped(conn, ferritin):
+    add(conn, ferritin, value="-2.5")
+    assert parse_csv(services.results_csv(conn))[1][3] == "-2.5"  # A real number, so no ' prefix
+
+
+def test_csv_of_empty_database_is_just_the_header(conn):
+    assert parse_csv(services.results_csv(conn)) == [["Date", "Test", "Category", "Value", "Unit"]]

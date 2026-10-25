@@ -130,3 +130,35 @@ tr.htmx-swapping { opacity: 0; transition: opacity 0.3s; }
 .section-title { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
 .results.stats { margin-top: 1rem; table-layout: auto; }
 .card-header select { min-width: 20rem; max-width: 100%; }
+
+/* Data page */
+a.button {
+    display: inline-block;
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    text-decoration: none;
+}
+a.button:hover { filter: brightness(1.1); }
+code {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    background: var(--bg);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    word-break: break-all;
+}
+kbd {
+    font-family: inherit;
+    font-size: 0.85em;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 0.3rem;
+}
+.results.backups { margin-top: 1rem; table-layout: auto; }
+.restore { margin-top: 1.25rem; }
+.restore summary { cursor: pointer; color: var(--accent); }
+.restore li { margin: 0.4rem 0; }
+#backups .success, #backups .error { margin: 0.5rem 0 0; }

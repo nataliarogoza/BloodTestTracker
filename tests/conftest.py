@@ -15,6 +15,12 @@ def db_path(tmp_path):
 
 
 @pytest.fixture
+def backup_dir(tmp_path):
+    """ A temporary backup folder, so tests never write into your real backups folder """
+    return tmp_path / "backups"
+
+
+@pytest.fixture
 def conn(db_path):
     """ An open connection to a fully migrated temporary database """
     conn = connect(db_path)
@@ -24,7 +30,7 @@ def conn(db_path):
 
 
 @pytest.fixture
-def client(db_path):
-    """ A test client for an app that uses the temporary database. It must say it's talking
-        to 127.0.0.1, since the app refuses other host names (its default is "testserver"). """
-    return TestClient(create_app(db_path), base_url="http://127.0.0.1")
+def client(db_path, backup_dir):
+    """ A test client for an app that uses the temporary database and backup folder. It must say
+        it's talking to 127.0.0.1, since the app refuses other host names (its default is "testserver"). """
+    return TestClient(create_app(db_path, backup_dir), base_url="http://127.0.0.1")

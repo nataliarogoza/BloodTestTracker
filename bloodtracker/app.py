@@ -7,22 +7,16 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from bloodtracker import services
-from bloodtracker.config import DB_PATH, PACKAGE_DIR
-from bloodtracker.db import connect, migrate
-from bloodtracker.services import NotFoundError, ValidationError
+from bloodtracker.config import BACKUP_DIR, DB_PATH, PACKAGE_DIR
+from bloodtracker.db import KEEP_STARTUP_BACKUPS, backup_database, backup_on_startup, connect, list_backups, migrate
+from bloodtracker.services import NotFoundError, ValidationError, format_exact
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
-
-
-def format_exact(number: float) -> str:
-    """ A measured number, exactly: 85.0 -> "85", 13.45 -> "13.45" """
-    text = repr(number) # Shortest form that is still exact
-    return text[:-2] if text.endswith(".0") else text
 
 
 def format_value(result) -> str:
@@ -58,20 +52,32 @@ def get_conn(request: Request):
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
 
-def create_app(db_path: Path | str = DB_PATH) -> FastAPI:
+def create_app(db_path: Path | str = DB_PATH, backup_dir: Path | str = BACKUP_DIR) -> FastAPI:
     """ Build the app (a factory, so tests can create isolated instances,
-        each with its own throwaway database) """
-    db_path = Path(db_path)
+        each with its own throwaway database and backup folder) """
+    db_path, backup_dir = Path(db_path), Path(backup_dir)
     db_path.parent.mkdir(parents=True, exist_ok=True) # e.g. create data/ on first run
+    is_new_database = not db_path.exists()
+    backup_problem = None
     conn = connect(db_path)
     try:
-        migrate(conn) # A fresh install builds its own tables; an existing one gets any new migrations
+        if not is_new_database: # A brand-new database has nothing to back up yet
+            try:
+                backup_on_startup(conn, db_path, backup_dir)
+            except (OSError, sqlite3.Error) as error: # e.g. disk full: still start, but say so on the Data page
+                backup_problem = f"The automatic backup when the app started failed: {error}"
+                print(f"WARNING: {backup_problem}")
+        # A fresh install builds its own tables; an existing one gets any new migrations,
+        # after a safety backup of how it was
+        migrate(conn, backup_dir=backup_dir)
     finally:
         conn.close()
 
     # No /docs page: it's for developers, and it would load its scripts from the internet
     app = FastAPI(title="BloodTestTracker", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db_path = db_path
+    app.state.backup_dir = backup_dir
+    app.state.backup_problem = backup_problem
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
 
     # Security 1: only answer requests addressed to this computer by name. Blocks "DNS rebinding",
@@ -204,6 +210,39 @@ def create_app(db_path: Path | str = DB_PATH) -> FastAPI:
         # Vary: tells the browser the reply depends on that header, so it never shows a cached
         # panel-only reply as if it were the whole page
         return render(request, template, chart_context(conn, test), headers={"Vary": "HX-Request"})
+
+    def backup_kind(name: str) -> str:
+        if "_startup" in name:
+            return "Automatic"
+        if "_before-" in name:
+            return "Before upgrade"
+        return "Manual"
+
+    def backups_context(message=None, error=None):
+        backups = [{"name": p.name, "kind": backup_kind(p.name), "size_kb": max(1, round(p.stat().st_size / 1024)),
+                    "created": datetime.datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")}
+                   for p in list_backups(backup_dir)]
+        return {"backups": backups, "backup_dir": backup_dir, "db_path": db_path, "keep": KEEP_STARTUP_BACKUPS,
+                "message": message, "error": error or app.state.backup_problem}
+
+    @app.get("/data", response_class=HTMLResponse)
+    def data_page(request: Request, conn: Conn):
+        result_count = conn.execute("SELECT count(*) FROM results").fetchone()[0]
+        return render(request, "data.html", backups_context() | {"result_count": result_count})
+
+    @app.get("/export/results.csv")
+    def export_csv(conn: Conn):
+        filename = f"blood_test_results_{datetime.date.today().isoformat()}.csv"
+        return Response(services.results_csv(conn), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'}) # Download, not show
+
+    @app.post("/backups", response_class=HTMLResponse)
+    def create_backup(request: Request, conn: Conn):
+        try:
+            path = backup_database(conn, backup_dir)
+        except OSError as error: # e.g. disk full, no permission
+            return render(request, "partials/backups.html", backups_context(error=f"Backup failed: {error}"))
+        return render(request, "partials/backups.html", backups_context(message=f"Saved {path.name}"))
 
     def reload_page():
         """ The result vanished (e.g. deleted in another tab): ask HTMX to reload the page """

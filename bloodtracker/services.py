@@ -3,6 +3,8 @@
     Functions take an open database connection, so web pages, tests and later
     features (PDF import, chat) all share the same rules. Problems the user can fix
     raise ValidationError with a message that's safe to show on the page. """
+import csv
+import io
 import math
 import re
 import sqlite3
@@ -45,6 +47,14 @@ class UnitSeries:
     dates: list[str]
     values: list[float]
     stats: Stats
+
+
+# --- Formatting ---
+
+def format_exact(number: float) -> str:
+    """ A measured number, exactly as stored: 85.0 -> "85", 13.45 -> "13.45" """
+    text = repr(number) # Shortest form that is still exact
+    return text[:-2] if text.endswith(".0") else text
 
 
 # --- Parsing user input ---
@@ -226,3 +236,28 @@ def _delete_report_if_empty(conn, report_id):
     conn.execute(
         "DELETE FROM reports WHERE id = ? AND NOT EXISTS (SELECT 1 FROM results WHERE report_id = ?)",
         (report_id, report_id))
+
+
+# --- Export ---
+
+CSV_HEADER = ["Date", "Test", "Category", "Value", "Unit"]
+
+
+def _spreadsheet_safe(text: str | None) -> str:
+    """ Spreadsheets run cells starting with = + - @ as formulas, e.g. a unit typed as
+        "=HYPERLINK(...)". A leading ' makes them show as plain text instead. """
+    text = text or ""
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def results_csv(conn: sqlite3.Connection) -> str:
+    """ All results as CSV (comma-separated, decimal dot), oldest first like a time series.
+        Numbers are written exactly; text values like "<0.5" as they are. """
+    out = io.StringIO()
+    writer = csv.writer(out) # Quotes any cell containing a comma, e.g. "ml/min/1,73 m2"
+    writer.writerow(CSV_HEADER)
+    for r in conn.execute(f"SELECT {RESULT_COLUMNS} ORDER BY rp.date, t.name"):
+        value = format_exact(r["value"]) if r["value"] is not None else _spreadsheet_safe(r["value_text"])
+        writer.writerow([r["date"], _spreadsheet_safe(r["test_name"]), _spreadsheet_safe(r["category"]),
+                         value, _spreadsheet_safe(r["unit"])])
+    return out.getvalue()

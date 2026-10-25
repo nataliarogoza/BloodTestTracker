@@ -273,3 +273,78 @@ def test_pages_disable_htmx_history_storage(client):
     (61.2333, "61.23"), (62.5, "62.5"), (85.0, "85"), (0.00412, "0.00412"), (0, "0"), (1234.567, "1234.57")])
 def test_rounded_numbers(number, shown):
     assert format_rounded(number) == shown
+
+
+# --- Data page ---
+
+from bloodtracker import config  # noqa: E402
+
+
+def test_data_page_shows_export_and_backup(client, ferritin):
+    add(client, ferritin)
+    page = client.get("/data").text
+    assert "Download all 1 results" in page
+    assert 'href="/export/results.csv"' in page
+    assert "No backups yet" in page
+    assert 'href="/data"' in page  # In the top bar
+
+
+def test_export_downloads_csv(client, ferritin):
+    add(client, ferritin, value="85,5")
+    response = client.get("/export/results.csv")
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["content-disposition"].startswith('attachment; filename="blood_test_results_')
+    assert "Ferritin,Iron,85.5,ng/ml" in response.text
+
+
+def test_backup_button_creates_backup_and_lists_it(client, backup_dir, ferritin):
+    add(client, ferritin)
+    response = client.post("/backups")
+    [backup] = list(backup_dir.glob("tracker_*_manual.db"))
+    assert f"Saved {backup.name}" in response.text
+    assert backup.name in client.get("/data").text
+    assert connect(backup).execute("SELECT count(*) FROM results").fetchone()[0] == 1
+
+
+def test_backup_from_another_website_is_refused(client, backup_dir):
+    assert client.post("/backups", headers={"Origin": "https://evil.example"}).status_code == 403
+    assert not backup_dir.exists()
+
+
+def test_tests_never_use_the_real_backup_folder(client, backup_dir):
+    assert client.app.state.backup_dir == backup_dir != config.BACKUP_DIR
+
+
+def test_default_backup_folder_sits_next_to_the_project():
+    assert config.BACKUP_DIR == config.PROJECT_DIR.parent / f"{config.PROJECT_DIR.name}_backups"
+
+
+# --- Automatic backup when the app starts ---
+
+from bloodtracker.app import create_app  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+
+def test_new_database_is_not_backed_up_at_startup(client, backup_dir):
+    assert not list(backup_dir.glob("*.db"))  # The client fixture created a brand-new database
+
+
+def test_existing_database_is_backed_up_at_startup(client, db_path, backup_dir, ferritin):
+    add(client, ferritin)
+    create_app(db_path, backup_dir)  # The app starts again
+    [backup] = backup_dir.glob("*_startup.db")
+    assert connect(backup).execute("SELECT count(*) FROM results").fetchone()[0] == 1
+
+
+def test_failed_startup_backup_still_starts_app_and_warns(db_path, tmp_path):
+    create_app(db_path, tmp_path / "backups")  # Create the database
+    blocked = tmp_path / "not-a-folder"
+    blocked.write_text("a file where the backup folder should be")
+    app = create_app(db_path, blocked)
+    page = TestClient(app, base_url="http://127.0.0.1").get("/data").text
+    assert "automatic backup when the app started failed" in page
+
+
+def test_backups_list_shows_their_type(client, backup_dir):
+    client.post("/backups")
+    assert "<td>Manual</td>" in client.get("/data").text
