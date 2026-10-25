@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Data - BloodTestTracker{% endblock %}
+{% block content %}
+<section class="card">
+    <h2>Export to CSV</h2>
+    <p>Download all {{ result_count }} results as a spreadsheet file: comma-separated, with decimal dots.
+       Opens directly in LibreOffice, Google Sheets or Excel in English.
+       <span class="muted">In Excel set to Polish, use Data → From Text/CSV and pick comma as the separator.</span></p>
+    <a class="button" href="/export/results.csv" download>Download CSV</a>
+</section>
+
+<section class="card">
+    <h2>Backups</h2>
+    <p><strong>Your database is backed up automatically every time the app starts</strong>, whenever something
+       changed since the last backup - nothing to remember. The newest {{ keep }} automatic backups are kept.
+       Backups made with the button, and those made before an upgrade changes the database, are never deleted.</p>
+    <p>Backups are complete copies, including what a CSV doesn't hold (reports, categories), saved to
+       <code>{{ backup_dir }}</code>.
+       <span class="muted">They're on the same disk as the app: they protect against mistakes and a damaged
+       database, not against the disk failing. For that, the folder can be a synced one (e.g. Dropbox) - set
+       <code>BLOODTRACKER_BACKUP_DIR</code> when starting the app.</span></p>
+    <div id="backups">
+        {% include "partials/backups.html" %}
+    </div>
+
+    <details class="restore">
+        <summary>How to restore a backup</summary>
+        <ol>
+            <li>Stop the app: <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal where it runs.</li>
+            <li>Copy the backup over your database:<br>
+                <code>cp "{{ backup_dir }}/BACKUP_NAME.db" "{{ db_path }}"</code></li>
+            <li>Start the app again.</li>
+        </ol>
+        <p class="muted">Tip: back up first, so you can undo the restore too.</p>
+    </details>
+</section>
+{% endblock %}

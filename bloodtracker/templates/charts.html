@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{% if test %}{{ test.name }} - {% endif %}Charts - BloodTestTracker{% endblock %}
+{% block scripts %}
+    {# Plotly is large (~5 MB), so only this page loads it #}
+    <script src="{{ url_for('static', path='js/plotly.min.js') }}" defer></script>
+    <script src="{{ url_for('static', path='js/charts.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>Charts</h2>
+        {# Picking a test fetches just its panel and updates the address (/charts?test=12),
+           so refreshing or bookmarking brings you back to the same test #}
+        <select name="test" aria-label="Test" hx-get="/charts" hx-target="#chart-panel" hx-push-url="true">
+            <option value="">Choose a test…</option>
+            {% for category, tests in chart_groups.items() %}
+            <optgroup label="{{ category }}">
+                {% for t in tests %}
+                <option value="{{ t.id }}" {% if t.id == selected_id %}selected{% endif %}>{{ t.name }} ({{ t.result_count }})</option>
+                {% endfor %}
+            </optgroup>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="chart-panel">
+        {% include "partials/chart_panel.html" %}
+    </div>
+</section>
+{% endblock %}

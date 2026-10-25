@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}BloodTestTracker{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+    <script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
+    <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+    {% block scripts %}{% endblock %}
+</head>
+{# hx-history="false": HTMX would otherwise keep copies of visited pages (your results) in the
+   browser's local storage for the Back button; this way Back simply asks the server again #}
+<body hx-history="false">
+    <header class="topbar">
+        <a class="brand" href="/">BloodTestTracker</a>
+        <nav>
+            <a href="/">Results</a>
+            <a href="/charts">Charts</a>
+            <a href="/data">Data</a>
+        </nav>
+    </header>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

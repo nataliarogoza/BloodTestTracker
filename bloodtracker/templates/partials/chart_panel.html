@@ -1,0 +1,57 @@
+{# One test's chart, statistics and history. Swapped in by HTMX when a test is picked. #}
+{% if not test %}
+    <p class="muted placeholder">{{ error or "Choose a test above to see its history." }}</p>
+{% else %}
+    <div class="chart-summary">
+        <h3>{{ test.name }}</h3>
+        <p class="muted">
+            {%- if test.category %}{{ test.category }} · {% endif -%}
+            {{ history|length }} result{{ "" if history|length == 1 else "s" }}
+            {%- if history %} · {{ history[-1].date }} → {{ history[0].date }}{% endif -%}
+        </p>
+    </div>
+
+    {% if series|length > 1 %}
+    <p class="note">Results use different units ({{ series|map(attribute="unit")|map("default", "no unit", true)|join(", ") }}),
+        so they're shown as separate lines with separate statistics.</p>
+    {% endif %}
+    {% if text_count %}
+    <p class="note">{{ text_count }} result{{ "" if text_count == 1 else "s" }} like “&lt;0.5” {{ "isn't" if text_count == 1 else "aren't" }}
+        an exact number, so {{ "it's" if text_count == 1 else "they're" }} listed below but not charted.</p>
+    {% endif %}
+
+    {% if series %}
+        <div id="chart" class="chart" aria-label="Chart of {{ test.name }} over time"></div>
+        {# The chart's data, read by charts.js. tojson makes it safe to embed in the page. #}
+        <script type="application/json" id="chart-data">{{ chart_data|tojson }}</script>
+
+        <table class="results stats">
+            <thead>
+                <tr><th>Unit</th><th class="num">Count</th><th class="num">Min</th><th class="num">Max</th><th class="num">Average ± spread</th></tr>
+            </thead>
+            <tbody>
+                {% for s in series %}
+                <tr>
+                    <td>{{ s.unit or "no unit" }}</td>
+                    <td class="num">{{ s.stats.count }}</td>
+                    <td class="num">{{ s.stats.min|exact }}</td>
+                    <td class="num">{{ s.stats.max|exact }}</td>
+                    <td class="num">{{ s.stats.mean|rounded }}{% if s.stats.count > 1 %} ± {{ s.stats.std|rounded }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="muted placeholder">No numeric results to chart yet.</p>
+    {% endif %}
+
+    <h3 class="section-title">History</h3>
+    <table class="results">
+        <thead><tr><th>Date</th><th class="num">Value</th><th>Unit</th></tr></thead>
+        <tbody>
+            {% for r in history %}
+            <tr><td>{{ r.date }}</td><td class="num">{{ r|value }}</td><td>{{ r.unit or "" }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

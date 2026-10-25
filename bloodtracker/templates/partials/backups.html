@@ -1,0 +1,18 @@
+{# The backup button and list. HTMX replaces this whole block after a new backup. #}
+{# Optional: automatic backups happen at startup anyway. Useful before a big change. #}
+<button hx-post="/backups" hx-target="#backups" hx-swap="innerHTML">Back up now</button>
+{% if message %}<p class="success" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if backups %}
+<table class="results backups">
+    <thead><tr><th>Backup</th><th>Type</th><th>Created</th><th class="num">Size</th></tr></thead>
+    <tbody>
+        {% for b in backups %}
+        <tr><td><code>{{ b.name }}</code></td><td>{{ b.kind }}</td><td>{{ b.created }}</td><td class="num">{{ b.size_kb }} KB</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No backups yet.</p>
+{% endif %}

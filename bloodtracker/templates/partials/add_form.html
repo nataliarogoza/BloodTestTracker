@@ -1,0 +1,11 @@
+{# hx-post sends the form without reloading the page; the reply replaces this whole form #}
+<form id="add-form" class="add-form" hx-post="/results" hx-target="this" hx-swap="outerHTML">
+    {% include "partials/test_select.html" %}
+    <input type="date" name="date" value="{{ form.date }}" max="{{ today }}" required aria-label="Date">
+    <input type="text" name="value" value="{{ form.value }}" placeholder="Value, e.g. 13,5" inputmode="decimal"
+           required aria-label="Value" {% if form.focus_value %}autofocus{% endif %}>
+    <input type="text" name="unit" value="{{ form.unit }}" placeholder="Unit" list="unit-options" aria-label="Unit">
+    <button type="submit">Add</button>
+    {% if form.error %}<p class="error" role="alert">{{ form.error }}</p>{% endif %}
+    {% if form.message %}<p class="success" role="status">{{ form.message }}</p>{% endif %}
+</form>

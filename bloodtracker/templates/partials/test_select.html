@@ -1,0 +1,11 @@
+{# Dropdown of tests grouped by category; each option carries its usual unit for app.js #}
+<select name="test_id" required aria-label="Test">
+    <option value="">Choose a test…</option>
+    {% for category, tests in test_groups.items() %}
+    <optgroup label="{{ category }}">
+        {% for t in tests %}
+        <option value="{{ t.id }}" data-unit="{{ t.default_unit or '' }}" {% if form.test_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+    </optgroup>
+    {% endfor %}
+</select>
